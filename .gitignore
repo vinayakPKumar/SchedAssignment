@@ -1,2 +1,3 @@
 NotNeeded.c
 *.out
+build/

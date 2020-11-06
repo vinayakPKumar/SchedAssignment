@@ -1,6 +1,6 @@
 #name of the title = CMakeLists.txt
 
-project(CixiProject)
+project(SchedProject)
 set(CMAKE_CXX_STANDARD 11)
 
-add_executable(application mainFile.cc headerDefinitions.h)
+add_executable(scheduler mainFile.cpp utils.cpp utils.h headerDefinitions.h)
