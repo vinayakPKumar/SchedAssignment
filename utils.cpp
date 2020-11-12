@@ -3,7 +3,7 @@
 #include<limits.h>
 #include<vector>
 using namespace std;
-
+#define DELAY_CONST  5000 ///Constant used for delay function
 static uint16_t gcd(uint16_t a, uint16_t b);
 
 /**********************gcd()*******************************/
@@ -53,7 +53,7 @@ extern void delay(void)
 {
 	for(int i =0; i<SHRT_MAX;i++)
 	{
-		for(int j =0; j<SHRT_MAX;j++);
+        for(int j =0; j<DELAY_CONST;j++);
 	}
 	return;
 }

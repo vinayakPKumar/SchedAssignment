@@ -132,6 +132,7 @@ int main(void)
     {
         for(int j = 0;j<metrics_ast[i].waitTime_au16.size();j++)
             averageWaitTime_ft += metrics_ast[i].waitTime_au16[j];  //Add all the wait times.
+
         averageWaitTime_ft = (float)averageWaitTime_ft/(float)(metrics_ast[i].waitTime_au16.size());  //Divide by number of elements to find the average
         cout<<"Average wait time of task "<<i<<" is "<<averageWaitTime_ft<<endl;  //Print the average
         averageWaitTime_ft = 0;  //Reset to 0 for next computation
@@ -196,7 +197,7 @@ static void simulator()
         }
 
         /*Schedule the first task in the ready list since its the highest priority*/
-        cout<<"System Time: "<<systemTime_u16<<" Scheduling task "<<(unsigned)readyTasks_ast[0].taskId_u8<<" with period"<<readyTasks_ast[0].period_u16<<endl;
+        cout<<"System Time: "<<systemTime_u16<<" Scheduling task "<<(unsigned)readyTasks_ast[0].taskId_u8<<" with period "<<readyTasks_ast[0].period_u16<<endl;
 
         /*When its the first time being scheduled, update the response time variable*/
         if(readyTasks_ast[0].firstEntry_bo == true)
@@ -209,6 +210,14 @@ static void simulator()
 
         /*Decrement the computation time by 1 since its scheduled for 1 time unit and check if computation is completed*/
         readyTasks_ast[0].computationTime_u16--;
+
+        /*For all tasks not scheduled, increment their wait times*/
+        for(int i = 1; i<tasksReady_u8;i++)
+        {
+            metrics_ast[readyTasks_ast[i].taskId_u8].waitTime_au16[metrics_ast[readyTasks_ast[i].taskId_u8].taskInstance]++;
+        }
+
+        /*Check if the computation of the current scheduled task is complete*/
         if(readyTasks_ast[0].computationTime_u16 == 0)
         {
             /*Computation complete, erase task from list and decrement number of ready tasks*/
@@ -216,11 +225,7 @@ static void simulator()
             metrics_ast[readyTasks_ast[0].taskId_u8].taskInstance++;  //Update task instance variable so that the metrics for the next instance will be recorded in a different array location
             readyTasks_ast.erase(readyTasks_ast.begin());
         }
-        for(int i = 1; i<tasksReady_u8;i++)
-        {
-            /*For all tasks not scheduled, increment their wait times*/
-            metrics_ast[readyTasks_ast[i].taskId_u8].waitTime_au16[metrics_ast[readyTasks_ast[0].taskId_u8].taskInstance]++;
-        }
+
     }
     else
     {
