@@ -34,7 +34,7 @@ int main(void)
     float U_ft = 0;  //Variable to calculate the Utilization factor
     uint16_t hyperperiod_u16 = 0;  //Variable to calculate hyperperiod
     vector<uint16_t> taskPeriods_au16;  //Variable to store periods (Used while calculating hyperperiod)
-    float averageResponseTime_ft,averageWaitTime_ft = 0;  //Variable for calculating the average metrics
+    float averageResponseTime_ft = 0,averageWaitTime_ft = 0;  //Variable for calculating the average metrics
     /*Get number of tasks*/
 
     printf("Enter the number of tasks\n");
@@ -171,8 +171,8 @@ static void simulator()
             readyTasks_ast[tasksReady_u8].deadline_u16+=systemTime_u16;  //Calculate absolute deadline from the relative deadline.
 
             /*Create new elements for metric calculation*/
-            metrics_ast[i].responseTimes_au16.push_back(uint16_t());
-            metrics_ast[i].waitTime_au16.push_back(uint16_t());
+            metrics_ast[i].responseTimes_au16.push_back(uint16_t(0));
+            metrics_ast[i].waitTime_au16.push_back(uint16_t(0));
 
             /*Increment the number of tasks that are ready*/
             tasksReady_u8++;
