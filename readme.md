@@ -1,4 +1,5 @@
 #Scheduling assignment
+
 To run please follow the steps below:
 1. Clone the repository.
 2. Create a new folder named "build" in the repository.
