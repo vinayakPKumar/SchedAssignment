@@ -14,9 +14,11 @@ vector <taskInfo_st> taskDetails_ast; //Variable to hold the details of entered 
 uint8_t numberOfTasks_u8 = 0;  //Variable to hold the number of tasks
 vector <taskInfo_st> readyTasks_ast;  //Variable which holds the ready tasks, equivalent to ready list
 uint8_t tasksReady_u8 = 0;  //Variable which indicates the number of ready tasks
-vector <taskMetrics_st> metrics_ast;  //Variable for metric calculation for each task
+int totalNumOfChannels_u8 = 0;
+float dutyCycle_ft = 0;
+vector <channelInfo> channelDetails_ast;
 /***********************Local functions*******************************************************************/
-static void simulator();  //Definition of the simulator function
+static void simulator(uint16_t duration_u16);  //Definition of the simulator function
 
 /**********************Main function***********************/
 /* Description: The main function is the entry point for
@@ -48,7 +50,6 @@ int main(void)
     {
         /*Add a new element to the taskDetails_ast, metrics_ast, taskPeriods_au16 structure */
         taskDetails_ast.push_back(taskInfo_st());
-        metrics_ast.push_back(taskMetrics_st());
         taskPeriods_au16.push_back(uint16_t());
 
         /*Read user input and update in the task structures*/
@@ -85,58 +86,19 @@ int main(void)
         printf("Computation time of task[%d] = %d\n",i,taskDetails_ast[i].computationTime_u16);
     }
 
-    /*Check the necessary condition, i.e. Utilization factor (U) must be less than or equal to 1*/
-    printf("Checking for feasibility \n");
-
-    /*Loop for all tasks and calculate the utilization factor*/
-    for(int i = 0; i<numberOfTasks_u8;i++)
+    cout<<"Enter the number of channels"<<endl;
+    cin>>totalNumOfChannels_u8;
+    for(int i = 0; i<totalNumOfChannels_u8;i++)
     {
-        U_ft = U_ft + ((float)(taskDetails_ast[i].computationTime_u16))/((float)(taskDetails_ast[i].period_u16));  //Calculation of U
+        channelDetails_ast.push_back(channelInfo());
+        channelDetails_ast[i].availability_bo = true;
+        channelDetails_ast[i].gravity_ft = 0;
+        channelDetails_ast[i].channelID_u8 = i;
     }
-
-    /*Print the utilization factor*/
-    printf("U = %f \n",U_ft);
-
-    /*Necessary condition fails. Exit with error message*/
-    if(U_ft > 1)
-    {
-        printf("ERROR: Tasks not schedulable\n");
-        exit(1);
-    }
-
-    /*Necessary condition does not fail. Find hyperperiod over which the task needs to be simulated*/
-    hyperperiod_u16 = lcm(taskPeriods_au16,numberOfTasks_u8);  //Call to function for calculation of hyperperiod
-
-    /*Print the hyperperiod for the user*/
-    printf("Hyperperiod = %hu \n",hyperperiod_u16);
-
-    /*Call the simulator. Repeat for the duration of the hyperperiod*/
-    for(int i = 0; i<hyperperiod_u16;i++)
-        simulator();
-
-    /*Display the idle time during the simulation. This metric is calculated. It could be manually measured as well by having another variable*/
-    cout<<"Idle Time of the system over the hyperperiod = "<<((1-U_ft)*hyperperiod_u16)<< " time units"<<endl;
-
-    /*Print the average response time metric for each task*/
-    for(int i = 0;i<numberOfTasks_u8;i++)
-    {
-        for(int j = 0;j<metrics_ast[i].responseTimes_au16.size();j++)
-            averageResponseTime_ft += metrics_ast[i].responseTimes_au16[j];  //Add all the response times
-        averageResponseTime_ft = (float)averageResponseTime_ft/(float)(metrics_ast[i].responseTimes_au16.size());  //Divide by number of elements to find the average
-        cout<<"Average response time of task "<<i<<" is "<<averageResponseTime_ft<<endl;  //Print the average
-        averageResponseTime_ft = 0;  //Reset to 0 for next computation
-    }
-
-    /*Print the average wait times for all tasks*/
-    for(int i = 0;i<numberOfTasks_u8;i++)
-    {
-        for(int j = 0;j<metrics_ast[i].waitTime_au16.size();j++)
-            averageWaitTime_ft += metrics_ast[i].waitTime_au16[j];  //Add all the wait times.
-
-        averageWaitTime_ft = (float)averageWaitTime_ft/(float)(metrics_ast[i].waitTime_au16.size());  //Divide by number of elements to find the average
-        cout<<"Average wait time of task "<<i<<" is "<<averageWaitTime_ft<<endl;  //Print the average
-        averageWaitTime_ft = 0;  //Reset to 0 for next computation
-    }
+    cout<<"Enter the duty cycle in percentage"<<endl;
+    cin>>dutyCycle_ft;
+    dutyCycle_ft /= 100;
+    simulator(20);
 
     /*Function complete, return*/
     return 1;
@@ -153,88 +115,105 @@ int main(void)
  * Input:   None
  * Return:  None
 **********************************************************/
-static void simulator()
+static void simulator(uint16_t duration_u16)
 {
     static uint16_t systemTime_u16 = 0;    //Simulates system time
-
-    /*Check for released tasks*/
-    for(int i = 0; i<numberOfTasks_u8;i++)
+    vector<taskInfo_st> transmittingList;
+    uint8_t taskIndex = 0,numberOfOngoingTx = 0;
+    while(systemTime_u16 < duration_u16)
     {
-        if((systemTime_u16 % taskDetails_ast[i].period_u16) == 0)  //Task is released when the system time is a multiple of its period
+        /*Check for released tasks*/
+        for(int i = 0; i<numberOfTasks_u8;i++)
         {
-            /*Add the task to the ready list*/
-            readyTasks_ast.push_back(taskInfo_st());  //Create new element in the ready list
-
-            /*Update task details such as arrival time, deadlines*/
-            readyTasks_ast[tasksReady_u8] = taskDetails_ast[i];
-            readyTasks_ast[tasksReady_u8].arrivalTime_u16 = systemTime_u16;
-            readyTasks_ast[tasksReady_u8].deadline_u16+=systemTime_u16;  //Calculate absolute deadline from the relative deadline.
-
-            /*Create new elements for metric calculation*/
-            metrics_ast[i].responseTimes_au16.push_back(uint16_t(0));
-            metrics_ast[i].waitTime_au16.push_back(uint16_t(0));
-
-            /*Increment the number of tasks that are ready*/
-            tasksReady_u8++;
-        }
-    }
-
-    /*Sort the ready list in the ascending order of periods. Hence at the end of the sort, the highest priority task is at the start*/
-    std::sort(readyTasks_ast.begin(), readyTasks_ast.end(), sortWaitingList);
-
-    /*Begin scheduling when at least one task is ready*/
-    if(tasksReady_u8 > 0)
-    {
-        for(int i = 0;i<tasksReady_u8;i++)
-        {
-            /*Check for deadline overruns*/
-            if(readyTasks_ast[i].deadline_u16 <= systemTime_u16)
+            if((systemTime_u16 % taskDetails_ast[i].period_u16) == 0)  //Task is released when the system time is a multiple of its period
             {
-                /*When an overrun is detected. Print an error message with details and exit*/
-                cout<<"Schedule unfeasible. Deadline of task "<<(unsigned)readyTasks_ast[i].taskId_u8<<" missed. System time: "<<systemTime_u16<<endl;
-                exit(-1);
+                /*Add the task to the ready list*/
+                readyTasks_ast.push_back(taskInfo_st());  //Create new element in the ready list
+
+                /*Update task details such as arrival time, deadlines*/
+                readyTasks_ast[tasksReady_u8] = taskDetails_ast[i];
+                readyTasks_ast[tasksReady_u8].arrivalTime_u16 = systemTime_u16;
+                readyTasks_ast[tasksReady_u8].deadline_u16+=systemTime_u16;  //Calculate absolute deadline from the relative deadline.
+
+
+                /*Increment the number of tasks that are ready*/
+                tasksReady_u8++;
             }
         }
-
-        /*Schedule the first task in the ready list since its the highest priority*/
-        cout<<"System Time: "<<systemTime_u16<<" Scheduling task "<<(unsigned)readyTasks_ast[0].taskId_u8<<" with period "<<readyTasks_ast[0].period_u16<<endl;
-
-        /*When its the first time being scheduled, update the response time variable*/
-        if(readyTasks_ast[0].firstEntry_bo == true)
+        /*Sort the ready list in the ascending order of periods. Hence at the end of the sort, the highest priority task is at the start*/
+        std::sort(readyTasks_ast.begin(), readyTasks_ast.end(), sortWaitingList);
+      //  std::sort(channelDetails_ast.begin(),channelDetails_ast.end(),sortChannels);
+        if((tasksReady_u8 > 0) || (numberOfOngoingTx > 0))
         {
-            // If its the first activation, then update the response time
+            for(int i = 0;i<numberOfOngoingTx;i++)
+            {
+                transmittingList[i].remainingTxTime--;
+                if(transmittingList[i].remainingTxTime == 0)
+                {
+                    for(int j = 0; j<totalNumOfChannels_u8;j++)
+                    {
+                        if(transmittingList[i].currentChannel == channelDetails_ast[j].channelID_u8)
+                        {
+                            channelDetails_ast[j].availability_bo = true;
+                            break;
+                        }
+                    }
+                    cout<<"Transmission of "<<(unsigned)transmittingList[i].taskId_u8<<" is complete at time "<<systemTime_u16<<" and the channel "<<(unsigned)transmittingList[i].currentChannel<<" is released"<<endl;
+                    transmittingList.erase(transmittingList.begin()+i);
+                    i--;
+                    numberOfOngoingTx--;
+                    continue;
+                }
+                if(transmittingList[i].deadline_u16 <=systemTime_u16)
+                {
+                    /*When an overrun is detected. Print an error message with details and exit*/
+                    cout<<"Schedule unfeasible. Deadline of transmission "<<(unsigned)transmittingList[i].taskId_u8<<" missed. System time: "<<systemTime_u16<<endl;
+                    exit(-1);
+                }
+            }
 
-            metrics_ast[readyTasks_ast[0].taskId_u8].responseTimes_au16[metrics_ast[readyTasks_ast[0].taskId_u8].taskInstance] = systemTime_u16 - readyTasks_ast[0].arrivalTime_u16; //RT = Time of first activation - Arrival Time
-            readyTasks_ast[0].firstEntry_bo = false;  //Set flag to false to prevent re-entry and recalculation
-        }
-
-        /*Decrement the computation time by 1 since its scheduled for 1 time unit and check if computation is completed*/
-        readyTasks_ast[0].computationTime_u16--;
-
-        /*For all tasks not scheduled, increment their wait times*/
-        for(int i = 1; i<tasksReady_u8;i++)
+            for(int i = 0;i<tasksReady_u8;i++)
+            {
+                /*Check for deadline overruns*/
+                if(readyTasks_ast[i].deadline_u16 <= systemTime_u16)
+                {
+                    /*When an overrun is detected. Print an error message with details and exit*/
+                    cout<<"Schedule unfeasible. Deadline of task "<<(unsigned)readyTasks_ast[i].taskId_u8<<" missed. System time: "<<systemTime_u16<<endl;
+                    exit(-1);
+                }
+            }
+        for(int k = 0; k<tasksReady_u8;k++)
         {
-            metrics_ast[readyTasks_ast[i].taskId_u8].waitTime_au16[metrics_ast[readyTasks_ast[i].taskId_u8].taskInstance]++;
-        }
 
-        /*Check if the computation of the current scheduled task is complete*/
-        if(readyTasks_ast[0].computationTime_u16 == 0)
-        {
-            /*Computation complete, erase task from list and decrement number of ready tasks*/
-            tasksReady_u8--;
-            metrics_ast[readyTasks_ast[0].taskId_u8].taskInstance++;  //Update task instance variable so that the metrics for the next instance will be recorded in a different array location
-            readyTasks_ast.erase(readyTasks_ast.begin());
+      for(int l = 0;l<totalNumOfChannels_u8;l++)
+            {
+                if(channelDetails_ast[l].availability_bo == false)
+                    continue;
+                /*Check if channel is blocked for the current transmitting node*/
+                for(int j = 0; j<readyTasks_ast[k].blockedChannels_ast.size();j++)
+                {
+//                    if(readyTasks_ast[k].blockedChannels_ast[j] == channelDetails_ast[i].channelID_u8)
+//                        goto skipch;
+                }
+                channelDetails_ast[l].availability_bo = false;
+                transmittingList.push_back(taskInfo_st());
+                transmittingList[numberOfOngoingTx] = readyTasks_ast[k];
+                transmittingList[numberOfOngoingTx].currentChannel = channelDetails_ast[l].channelID_u8;
+                transmittingList[numberOfOngoingTx].remainingTxTime = transmittingList[numberOfOngoingTx].computationTime_u16;
+                cout<<"Channel "<<(unsigned)channelDetails_ast[l].channelID_u8<<" assigned to node "<<(unsigned)transmittingList[numberOfOngoingTx].taskId_u8<<" at time "<<systemTime_u16<<endl;
+                readyTasks_ast.erase(readyTasks_ast.begin() + k);
+                k--;
+                tasksReady_u8--;
+                numberOfOngoingTx++;
+                break;
+            }
         }
+        }
+        systemTime_u16++;
+        delay();
 
     }
-    else
-    {
-        /*If no task present in the queue, then indicate idle*/
-        cout<<"System Time: "<<systemTime_u16<<" Idle"<<endl;
-    }
-    delay();  //Delay between each iteration
 
-    systemTime_u16++; //Increment system time for next iteration
 
     return;
 }
