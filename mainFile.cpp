@@ -54,7 +54,7 @@ int main(void)
 
         /*Read user input and update in the task structures*/
         scanf("%hu",&taskDetails_ast[i].period_u16);
-        taskDetails_ast[i].deadline_u16 = taskDetails_ast[i].period_u16;  //Update deadline. Here deadline = period.
+       // taskDetails_ast[i].deadline_u16 = taskDetails_ast[i].period_u16;  //Update deadline. Here deadline = period.
         taskPeriods_au16[i] = taskDetails_ast[i].period_u16;  //Copy onto local variable, used for hyperperiod computation.
         taskDetails_ast[i].taskId_u8 = i;  //Assign task ID. Here the task ID is equal to the index for simplicity
     }
@@ -84,6 +84,13 @@ int main(void)
     for(int i = 0; i<numberOfTasks_u8;i++)
     {
         printf("Computation time of task[%d] = %d\n",i,taskDetails_ast[i].computationTime_u16);
+    }
+
+    /*Get the computation time for each task*/
+    printf("Enter deadline times\n");
+    for(int i = 0; i<numberOfTasks_u8;i++)
+    {
+        scanf("%hu",&taskDetails_ast[i].deadline_u16);  //Read computation time and update in the structure
     }
 
     cout<<"Enter the number of channels"<<endl;
@@ -164,7 +171,7 @@ static void simulator(uint16_t duration_u16)
 
         /*Sort the ready list in the ascending order of periods. Hence at the end of the sort, the highest priority task is at the start*/
         std::sort(readyTasks_ast.begin(), readyTasks_ast.end(), sortWaitingList);
-        std::sort(channelDetails_ast.begin(),channelDetails_ast.end(),sortChannels);
+
         if((tasksReady_u8 > 0) || (numberOfOngoingTx > 0))
         {
             for(int i = 0;i<numberOfOngoingTx;i++)
@@ -177,10 +184,10 @@ static void simulator(uint16_t duration_u16)
                         if(transmittingList[i].currentChannel == channelDetails_ast[j].channelID_u8)
                         {
                             channelDetails_ast[j].availability_bo = true;
-                            currentGravity = ceil(transmittingList[i].computationTime_u16/dutyCycle_ft);
+                            currentGravity = ceil(transmittingList[i].computationTime_u16/dutyCycle_ft) - transmittingList[i].computationTime_u16;
                             if(currentGravity > channelDetails_ast[j].gravity_u16)
                             {
-                                channelDetails_ast[i].gravity_u16 = currentGravity;
+                                channelDetails_ast[j].gravity_u16 = currentGravity;
                             }
                             unavailableChannel_st addCh;
                             addCh.chId_u8 = transmittingList[i].currentChannel;
@@ -202,6 +209,9 @@ static void simulator(uint16_t duration_u16)
                     exit(-1);
                 }
             }
+            //Sort channels based on their gravity
+            //NOTE: COMMENTING THE LINE BELOW EFFECTIVELY ACTIVATES/DEACTIVATES THE ALGORITHM FOR CHANNEL SCHEDULING
+            std::sort(channelDetails_ast.begin(),channelDetails_ast.end(),sortChannels);
 
             for(int i = 0;i<tasksReady_u8;i++)
             {
@@ -221,10 +231,14 @@ static void simulator(uint16_t duration_u16)
                 if(channelDetails_ast[l].availability_bo == false)
                     continue;
                 /*Check if channel is blocked for the current transmitting node*/
-                for(int j = 0; j<readyTasks_ast[k].blockedChannels_ast.size();j++)
+                taskIndex = readyTasks_ast[k].taskId_u8;
+                for(int j = 0; j<taskDetails_ast[taskIndex].blockedChannels_ast.size();j++)
                 {
-//                    if(readyTasks_ast[k].blockedChannels_ast[j] == channelDetails_ast[i].channelID_u8)
-//                        goto skipch;
+                    if(taskDetails_ast[taskIndex].blockedChannels_ast[j].chId_u8 == channelDetails_ast[l].channelID_u8)
+                    {
+                        //cout<<"** "<<k<<"**"<<(unsigned)taskDetails_ast[taskIndex].taskId_u8<<"**"<<(unsigned)channelDetails_ast[l].channelID_u8<<"**"<<systemTime_u16<<endl;
+                       goto skipch;
+                    }
                 }
                 channelDetails_ast[l].availability_bo = false;
                 transmittingList.push_back(taskInfo_st());
@@ -249,7 +263,7 @@ static void simulator(uint16_t duration_u16)
         }
         for(int i = 0; i < numberOfOngoingTx; i++)
         {
-            cout<<"Task "<<(unsigned)transmittingList[i].taskId_u8<<" is transmitting with remaining time "<<(unsigned)transmittingList[i].remainingTxTime<<endl;
+            cout<<"Task "<<(unsigned)transmittingList[i].taskId_u8<<" is transmitting with channel : "<<(unsigned)transmittingList[i].currentChannel<<" with remaining time "<<(unsigned)transmittingList[i].remainingTxTime<<endl;
         }
         for(int i = 0; i<totalNumOfChannels_u8; i++)
         {

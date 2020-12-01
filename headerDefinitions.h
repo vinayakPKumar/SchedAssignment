@@ -35,7 +35,7 @@ struct channelInfo
     uint16_t gravity_u16;
     bool availability_bo;
     uint16_t channelID_u8;
-    bool operator() (channelInfo i,channelInfo j) { return (i.gravity_u16<j.gravity_u16);}
+    bool operator() (channelInfo i,channelInfo j) { return (i.gravity_u16>j.gravity_u16);}
 }sortChannels;
 
 #endif
