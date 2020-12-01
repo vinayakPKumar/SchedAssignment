@@ -6,7 +6,7 @@
 #include<algorithm>
 #include<limits.h>
 #include"utils.h"
-
+#include<cmath>
 
 using namespace std;
 /**************************Global variables*************************************************************/
@@ -92,7 +92,7 @@ int main(void)
     {
         channelDetails_ast.push_back(channelInfo());
         channelDetails_ast[i].availability_bo = true;
-        channelDetails_ast[i].gravity_ft = 0;
+        channelDetails_ast[i].gravity_u16 = 0;
         channelDetails_ast[i].channelID_u8 = i;
     }
     cout<<"Enter the duty cycle in percentage"<<endl;
@@ -120,6 +120,7 @@ static void simulator(uint16_t duration_u16)
     static uint16_t systemTime_u16 = 0;    //Simulates system time
     vector<taskInfo_st> transmittingList;
     uint8_t taskIndex = 0,numberOfOngoingTx = 0;
+    uint16_t currentGravity = 0;
     while(systemTime_u16 < duration_u16)
     {
         /*Check for released tasks*/
@@ -140,9 +141,30 @@ static void simulator(uint16_t duration_u16)
                 tasksReady_u8++;
             }
         }
+        //Decrement gravity
+        for(int i = 0; i < totalNumOfChannels_u8; i++)
+        {
+            if(channelDetails_ast[i].gravity_u16>0)
+                channelDetails_ast[i].gravity_u16--;
+        }
+        //Decrement block times
+        for(int i = 0; i <numberOfTasks_u8; i++)
+        {
+            for(int j = 0;j< taskDetails_ast[i].blockedChannels_ast.size();j++)
+            {
+                if(taskDetails_ast[i].blockedChannels_ast[j].duration_u16 > 0)
+                    taskDetails_ast[i].blockedChannels_ast[j].duration_u16--;
+                if(taskDetails_ast[i].blockedChannels_ast[j].duration_u16 == 0)
+                {
+                    taskDetails_ast[i].blockedChannels_ast.erase( taskDetails_ast[i].blockedChannels_ast.begin()+j);
+                    j--;
+                }
+            }
+        }
+
         /*Sort the ready list in the ascending order of periods. Hence at the end of the sort, the highest priority task is at the start*/
         std::sort(readyTasks_ast.begin(), readyTasks_ast.end(), sortWaitingList);
-      //  std::sort(channelDetails_ast.begin(),channelDetails_ast.end(),sortChannels);
+        std::sort(channelDetails_ast.begin(),channelDetails_ast.end(),sortChannels);
         if((tasksReady_u8 > 0) || (numberOfOngoingTx > 0))
         {
             for(int i = 0;i<numberOfOngoingTx;i++)
@@ -155,6 +177,15 @@ static void simulator(uint16_t duration_u16)
                         if(transmittingList[i].currentChannel == channelDetails_ast[j].channelID_u8)
                         {
                             channelDetails_ast[j].availability_bo = true;
+                            currentGravity = ceil(transmittingList[i].computationTime_u16/dutyCycle_ft);
+                            if(currentGravity > channelDetails_ast[j].gravity_u16)
+                            {
+                                channelDetails_ast[i].gravity_u16 = currentGravity;
+                            }
+                            unavailableChannel_st addCh;
+                            addCh.chId_u8 = transmittingList[i].currentChannel;
+                            addCh.duration_u16 = currentGravity;
+                            taskDetails_ast[transmittingList[i].taskId_u8].blockedChannels_ast.push_back(unavailableChannel_st(addCh));
                             break;
                         }
                     }
@@ -206,9 +237,37 @@ static void simulator(uint16_t duration_u16)
                 tasksReady_u8--;
                 numberOfOngoingTx++;
                 break;
+                skipch: ;
             }
         }
         }
+        //Print all status
+        cout<<"#############At time "<<systemTime_u16<<" :"<<endl;
+        for(int i = 0; i < tasksReady_u8; i++)
+        {
+            cout<<"Task "<<(unsigned)readyTasks_ast[i].taskId_u8<<" is in ready list"<<endl;
+        }
+        for(int i = 0; i < numberOfOngoingTx; i++)
+        {
+            cout<<"Task "<<(unsigned)transmittingList[i].taskId_u8<<" is transmitting with remaining time "<<(unsigned)transmittingList[i].remainingTxTime<<endl;
+        }
+        for(int i = 0; i<totalNumOfChannels_u8; i++)
+        {
+            cout<<"Gravity of channel "<<(unsigned)channelDetails_ast[i].channelID_u8<<" is: "<<channelDetails_ast[i].gravity_u16<<" and its status is : "<<channelDetails_ast[i].availability_bo<<endl;
+        }
+        for(int i = 0; i <numberOfTasks_u8; i++)
+        {
+            if(taskDetails_ast[i].blockedChannels_ast.size()>0)
+                cout<<"Task : "<<(unsigned)taskDetails_ast[i].taskId_u8<<" has the following blocked channels"<<endl;
+            else
+                continue;
+            for(int j = 0;j< taskDetails_ast[i].blockedChannels_ast.size();j++)
+            {
+                cout<<"Channel: "<<(unsigned)taskDetails_ast[i].blockedChannels_ast[j].chId_u8<<" blocked for "<<taskDetails_ast[i].blockedChannels_ast[j].duration_u16<<endl;
+            }
+        }
+        cout<<"#####################"<<endl;
+
         systemTime_u16++;
         delay();
 

@@ -10,6 +10,7 @@ struct unavailableChannel_st
     uint16_t duration_u16;
 };
 
+
 struct taskInfo_st
 {
     uint8_t taskId_u8;
@@ -31,10 +32,10 @@ struct taskMetrics_st
 };
 struct channelInfo
 {
-    float gravity_ft;
+    uint16_t gravity_u16;
     bool availability_bo;
     uint16_t channelID_u8;
-    bool operator() (channelInfo i,channelInfo j) { return (i.gravity_ft<j.gravity_ft);}
+    bool operator() (channelInfo i,channelInfo j) { return (i.gravity_u16<j.gravity_u16);}
 }sortChannels;
 
 #endif
