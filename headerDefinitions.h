@@ -6,35 +6,37 @@
 using namespace std;
 struct unavailableChannel_st
 {
-    uint8_t chId_u8;
-    uint16_t duration_u16;
+    int chId_u8;
+    int duration_u16;
 };
 
 
 struct taskInfo_st
 {
-    uint8_t taskId_u8;
-    uint16_t period_u16;
-    uint16_t computationTime_u16;
-    uint16_t arrivalTime_u16;
-    uint16_t deadline_u16;
+    int taskId_u8;
+    int period_u16;
+    int computationTime_u16;
+    int arrivalTime_u16;
+    int deadline_u16;
+    int laxity;
+    float SpreadFactor;
     bool isTransmitting_bo = false;
-    uint8_t remainingTxTime = computationTime_u16;
-    uint8_t currentChannel;
+    int remainingTxTime = computationTime_u16;
+    int currentChannel;
     vector<unavailableChannel_st> blockedChannels_ast;
-    bool operator() (taskInfo_st i,taskInfo_st j) { return (i.period_u16<j.period_u16);}  //Operator to perform sorting within a vector structure.
+    bool operator() (taskInfo_st i,taskInfo_st j) { return (i.laxity<j.laxity);}  //Operator to perform sorting within a vector structure.
    } sortWaitingList;
 struct taskMetrics_st
 {
-    uint16_t taskInstance = 0;
-    vector<uint16_t>responseTimes_au16;
-    vector<uint16_t>waitTime_au16;
+    int taskInstance = 0;
+    vector<int>responseTimes_au16;
+    vector<int>waitTime_au16;
 };
 struct channelInfo
 {
-    uint16_t gravity_u16;
+    int gravity_u16;
     bool availability_bo;
-    uint16_t channelID_u8;
+    int channelID_u8;
     bool operator() (channelInfo i,channelInfo j) { return (i.gravity_u16>j.gravity_u16);}
 }sortChannels;
 
