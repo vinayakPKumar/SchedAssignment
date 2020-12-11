@@ -7,8 +7,12 @@
 #include<limits.h>
 #include"utils.h"
 #include<cmath>
+#include<float.h>
+#include<time.h>
 
 using namespace std;
+
+#define SF_7    7
 /**************************Global variables*************************************************************/
 vector <taskInfo_st> taskDetails_ast; //Variable to hold the details of entered tasks
 uint8_t numberOfTasks_u8 = 0;  //Variable to hold the number of tasks
@@ -19,6 +23,8 @@ float dutyCycle_ft = 0;
 vector <channelInfo> channelDetails_ast;
 /***********************Local functions*******************************************************************/
 static void simulator(uint16_t duration_u16);  //Definition of the simulator function
+static float calculateTOA(float SF_u8, float PL_u8);
+static void simulationSets();
 
 /**********************Main function***********************/
 /* Description: The main function is the entry point for
@@ -34,81 +40,93 @@ static void simulator(uint16_t duration_u16);  //Definition of the simulator fun
 int main(void)
 {
     float U_ft = 0;  //Variable to calculate the Utilization factor
-    uint16_t hyperperiod_u16 = 0;  //Variable to calculate hyperperiod
     vector<uint16_t> taskPeriods_au16;  //Variable to store periods (Used while calculating hyperperiod)
-    float averageResponseTime_ft = 0,averageWaitTime_ft = 0;  //Variable for calculating the average metrics
+    float averageResponseTime_ft = 0,averageWaitTime_ft = 0, TOA = 0;  //Variable for calculating the average metrics
+    float spread,size;
+    srand(time(NULL));  //Initialize random seed
     /*Get number of tasks*/
+    simulationSets();  //Function to generate simulation
+    /************************EVERYTHING BELOW IS COMMENTED AND CAN BE IGNORED. GOTO LINE 313*************************/
+//    cout<<"Enter payload size"<<endl;
+//    cin>>size;
+//    cout<<"Enter SF"<<endl;
+//    cin>>spread;
+//    TOA = calculateTOA(spread,size);
+//    cout<<TOA;
+//    return 0;
 
-    printf("Enter the number of tasks\n");
-    scanf("%hhu",&numberOfTasks_u8);
 
-    /*Get the period for each task*/
-    printf("%hhu tasks are created. Enter the task periods\n",numberOfTasks_u8);
 
-    /*Loop until all periods are entered. Also create the structures for each task*/
-    for(int i = 0; i<numberOfTasks_u8;i++)
-    {
-        /*Add a new element to the taskDetails_ast, metrics_ast, taskPeriods_au16 structure */
-        taskDetails_ast.push_back(taskInfo_st());
-        taskPeriods_au16.push_back(uint16_t());
+//    printf("Enter the number of tasks\n");
+//    scanf("%hhu",&numberOfTasks_u8);
 
-        /*Read user input and update in the task structures*/
-        scanf("%hu",&taskDetails_ast[i].period_u16);
-       // taskDetails_ast[i].deadline_u16 = taskDetails_ast[i].period_u16;  //Update deadline. Here deadline = period.
-        taskPeriods_au16[i] = taskDetails_ast[i].period_u16;  //Copy onto local variable, used for hyperperiod computation.
-        taskDetails_ast[i].taskId_u8 = i;  //Assign task ID. Here the task ID is equal to the index for simplicity
-    }
+//    /*Get the period for each task*/
+//    printf("%hhu tasks are created. Enter the task periods\n",numberOfTasks_u8);
 
-    /*Display entered periods*/
-    printf("The entered periods are\n");
+//    /*Loop until all periods are entered. Also create the structures for each task*/
+//    for(int i = 0; i<numberOfTasks_u8;i++)
+//    {
+//        /*Add a new element to the taskDetails_ast, metrics_ast, taskPeriods_au16 structure */
+//        taskDetails_ast.push_back(taskInfo_st());
+//        taskPeriods_au16.push_back(uint16_t());
 
-    /*Loop until all periods are displayed*/
-    for(int i = 0; i<numberOfTasks_u8;i++)
-    {
-        printf("Period of task[%d] = %d\n",i,taskDetails_ast[i].period_u16);
-    }
+//        /*Read user input and update in the task structures*/
+//        scanf("%hu",&taskDetails_ast[i].period_u16);
+//       // taskDetails_ast[i].deadline_u16 = taskDetails_ast[i].period_u16;  //Update deadline. Here deadline = period.
+//        taskPeriods_au16[i] = taskDetails_ast[i].period_u16;  //Copy onto local variable, used for hyperperiod computation.
+//        taskDetails_ast[i].taskId_u8 = i;  //Assign task ID. Here the task ID is equal to the index for simplicity
+//    }
 
-    /*Get the computation time for each task*/
-    printf("Enter computation times\n");
+//    /*Display entered periods*/
+//    printf("The entered periods are\n");
 
-    /*Loop until all computation times are entered*/
-    for(int i = 0; i<numberOfTasks_u8;i++)
-    {
-        scanf("%hu",&taskDetails_ast[i].computationTime_u16);  //Read computation time and update in the structure
-    }
+//    /*Loop until all periods are displayed*/
+//    for(int i = 0; i<numberOfTasks_u8;i++)
+//    {
+//        printf("Period of task[%d] = %d\n",i,taskDetails_ast[i].period_u16);
+//    }
 
-    /*Display entered compuation times*/
-    printf("The entered computation times are\n");
+//    /*Get the computation time for each task*/
+//    printf("Enter computation times\n");
 
-    /*Loop until all computation times are displayed*/
-    for(int i = 0; i<numberOfTasks_u8;i++)
-    {
-        printf("Computation time of task[%d] = %d\n",i,taskDetails_ast[i].computationTime_u16);
-    }
+//    /*Loop until all computation times are entered*/
+//    for(int i = 0; i<numberOfTasks_u8;i++)
+//    {
+//        scanf("%hu",&taskDetails_ast[i].computationTime_u16);  //Read computation time and update in the structure
+//    }
 
-    /*Get the computation time for each task*/
-    printf("Enter deadline times\n");
-    for(int i = 0; i<numberOfTasks_u8;i++)
-    {
-        scanf("%hu",&taskDetails_ast[i].deadline_u16);  //Read computation time and update in the structure
-    }
+//    /*Display entered compuation times*/
+//    printf("The entered computation times are\n");
 
-    cout<<"Enter the number of channels"<<endl;
-    cin>>totalNumOfChannels_u8;
-    for(int i = 0; i<totalNumOfChannels_u8;i++)
-    {
-        channelDetails_ast.push_back(channelInfo());
-        channelDetails_ast[i].availability_bo = true;
-        channelDetails_ast[i].gravity_u16 = 0;
-        channelDetails_ast[i].channelID_u8 = i;
-    }
-    cout<<"Enter the duty cycle in percentage"<<endl;
-    cin>>dutyCycle_ft;
-    dutyCycle_ft /= 100;
-    simulator(20);
+//    /*Loop until all computation times are displayed*/
+//    for(int i = 0; i<numberOfTasks_u8;i++)
+//    {
+//        printf("Computation time of task[%d] = %d\n",i,taskDetails_ast[i].computationTime_u16);
+//    }
 
-    /*Function complete, return*/
-    return 1;
+//    /*Get the computation time for each task*/
+//    printf("Enter deadline times\n");
+//    for(int i = 0; i<numberOfTasks_u8;i++)
+//    {
+//        scanf("%hu",&taskDetails_ast[i].deadline_u16);  //Read computation time and update in the structure
+//    }
+
+//    cout<<"Enter the number of channels"<<endl;
+//    cin>>totalNumOfChannels_u8;
+//    for(int i = 0; i<totalNumOfChannels_u8;i++)
+//    {
+//        channelDetails_ast.push_back(channelInfo());
+//        channelDetails_ast[i].availability_bo = true;
+//        channelDetails_ast[i].gravity_u16 = 0;
+//        channelDetails_ast[i].channelID_u8 = i;
+//    }
+//    cout<<"Enter the duty cycle in percentage"<<endl;
+//    cin>>dutyCycle_ft;
+//    dutyCycle_ft /= 100;
+//    simulator(20);
+
+//    /*Function complete, return*/
+//    return 1;
 }
 
 /**********************simulator()************************/
@@ -289,4 +307,83 @@ static void simulator(uint16_t duration_u16)
 
 
     return;
+}
+
+/*Function for calculation of time on air*/
+static float calculateTOA(float SF_u8, float PL_u8)
+{
+    float retval_ft = 0, calc_ft = 0, symbolTime_ft = 0, preambleTime_ft = 0 ;
+
+
+    calc_ft = ceil(((8*PL_u8)-(4*SF_u8)+(8+16+20))/(4*SF_u8))*(4/0.8);
+
+    symbolTime_ft = (pow(2,SF_u8))/125;
+
+    preambleTime_ft = (8+4.25)*symbolTime_ft;
+
+    retval_ft = 8 + fmax(calc_ft,0);
+
+    retval_ft*=symbolTime_ft;
+    retval_ft+=preambleTime_ft;
+    retval_ft = ceil(retval_ft);
+
+    return retval_ft;
+}
+
+static void simulationSets()
+{
+    int numberOfChannels, numberOfLinks,numberOfSimulations;
+    vector<taskInfo_st> nodeList;
+    vector<channelInfo> channelList;
+    float randomPayload,lowestPeriod=0,periodCalc =0;
+    //Get the number of nodes, number of channels and the number of simulation sets
+    cout<<"Enter the number of nodes"<<endl;
+    cin>>numberOfLinks;
+    for(int i = 0; i<numberOfLinks; i++)
+    {
+        /*Add a new element to the taskDetails_ast, metrics_ast, taskPeriods_au16 structure */
+        nodeList.push_back(taskInfo_st());
+
+        nodeList[i].taskId_u8 = i;  //Assign task ID. Here the task ID is equal to the index for simplicity
+    }
+    cout<<"Enter the number of links"<<endl;
+    cin>>numberOfChannels;
+    for(int i = 0; i<numberOfChannels;i++)
+    {
+        channelList.push_back(channelInfo());
+        channelList[i].availability_bo = true;
+        channelList[i].gravity_u16 = 0;
+        channelList[i].channelID_u8 = i;
+    }
+    cout<<"Enter the number of simulations"<<endl;
+    cin>>numberOfSimulations;
+    for(int i = 0;i<numberOfSimulations;i++)  //Create node set for each simulation set requested
+    {
+        for(int j =0;j<numberOfLinks;j++)  //Generate TOA for a random payload for each node
+        {
+            randomPayload = 1 + rand()%5;
+            nodeList[j].computationTime_u16 = calculateTOA(SF_7,randomPayload);
+            nodeList[j].deadline_u16 = nodeList[j].computationTime_u16 * (1+(rand()%5));  //Deadline assigned as a random value between TOA and 5*TOA
+        }
+        lowestPeriod = FLT_MAX;
+        for(int j =0;j<numberOfLinks;j++)  //Calculate the smallest period (See paper)
+        {
+            periodCalc = ceil((nodeList[j].computationTime_u16/0.01));
+            if(periodCalc < lowestPeriod)
+                lowestPeriod = periodCalc;
+        }
+        for(int j = 0; j<numberOfLinks;j++)  //Assign this period to all the nodes
+        {
+            nodeList[j].period_u16 = lowestPeriod;
+        }
+        cout<<"Generated task set "<<i<<" :"<<endl;
+        for(int j = 0; j<numberOfLinks;j++)   //Display the generated task set
+        {
+            cout<<"Task ID: "<<(unsigned)nodeList[j].taskId_u8<<" of period : "<<nodeList[j].period_u16<<" of TOA: "<<nodeList[j].computationTime_u16<<" of deadline: "<<nodeList[j].deadline_u16<<endl;
+
+        }
+        cout<<"***********************"<<endl;
+    }
+
+
 }
