@@ -22,7 +22,7 @@ using namespace std;
 float dutyCycle_ft = 0.01;
 //vector <channelInfo> channelDetails_ast;
 /***********************Local functions*******************************************************************/
-static void simulator(uint16_t duration_u16,uint8_t numberOfTasks_u8,vector <taskInfo_st> taskDetails_ast,int totalNumOfChannels_u8,vector <channelInfo> channelDetails_ast);
+static int simulator(uint16_t duration_u16,uint8_t numberOfTasks_u8,vector <taskInfo_st> taskDetails_ast,int totalNumOfChannels_u8,vector <channelInfo> channelDetails_ast);
 static float calculateTOA(float SF_u8, float PL_u8);
 static void simulationSets();
 
@@ -131,18 +131,20 @@ int main(void)
 
 /**********************simulator()************************/
 /* Description: The simulator performs a simulation of the
- * schedule for the given task set. It generates the
- * schedule by using the Rate Monotonic algorithm. It updates
- * the metrics such as response time and wait time for
- * each task it simulates. It also detects deadline
- * overruns and terminates with an error message in case
+ * schedule for the given node and channel set. It generates the
+ * schedule by using the scheduling algorithm proposed in the paper.
  * of an overrun.
- * Input:   None
+ * Input:
+ *          duration_u16(int): Time duration for which the system is to be run
+ *          numberOfTasks_u8(uint8_t): Number of nodes(tasks)
+ *          taskDetails_ast(vector<taskInfo_st>): Node details such as ToA, deadline, ID, arrival time etc TODO: Rename to nodeDetails_ast
+ *          totalNumOfChannels_u8(int): Number of channels available
+ *          channelDetails_ast(vector<channelInfo>): Channel details such as ID, availability and gravity
  * Return:  None
 **********************************************************/
-static void simulator(uint16_t duration_u16,uint8_t numberOfTasks_u8,vector <taskInfo_st> taskDetails_ast,int totalNumOfChannels_u8,vector <channelInfo> channelDetails_ast)
+static int simulator(int duration_u16,uint8_t numberOfTasks_u8,vector <taskInfo_st> taskDetails_ast,int totalNumOfChannels_u8,vector <channelInfo> channelDetails_ast)
 {
-    uint16_t systemTime_u16 = 0;    //Simulates system time
+    int systemTime_u16 = 0;    //Simulates system time
     vector<taskInfo_st> transmittingList;
     vector <taskInfo_st> readyTasks_ast;
     uint8_t tasksReady_u8 = 0;
@@ -168,19 +170,21 @@ static void simulator(uint16_t duration_u16,uint8_t numberOfTasks_u8,vector <tas
                 tasksReady_u8++;
             }
         }
-        //Decrement gravity
+        //Decrement gravity for all channels if they are less than zero
         for(int i = 0; i < totalNumOfChannels_u8; i++)
         {
             if(channelDetails_ast[i].gravity_u16>0)
                 channelDetails_ast[i].gravity_u16--;
         }
-        //Decrement block times
+        //Decrement block times. Each channel is blocked off for a certain node and at each passing of time, the blocked duration is decremented. Loop for each task
+        //NOTE: THIS PARAMETER OF BLOCKED TIME IS STORED IN THE ORIGINAL STRUCTURE AND NOT IN THE READY TASKS STRUCTURE AS THE ELEMENTS IN THE READY TASK STRUCTURE WILL BE DELETED AS AND WHEN TASKS ARE COMPLETE
         for(int i = 0; i <numberOfTasks_u8; i++)
         {
             for(int j = 0;j< taskDetails_ast[i].blockedChannels_ast.size();j++)
-            {
+            {  //Loop across all the blocked channels and decrement if they are more than 0
                 if(taskDetails_ast[i].blockedChannels_ast[j].duration_u16 > 0)
                     taskDetails_ast[i].blockedChannels_ast[j].duration_u16--;
+                //If blocked duration has elapsed, remove this channel from the blocked list for the task.
                 if(taskDetails_ast[i].blockedChannels_ast[j].duration_u16 == 0)
                 {
                     taskDetails_ast[i].blockedChannels_ast.erase( taskDetails_ast[i].blockedChannels_ast.begin()+j);
@@ -189,58 +193,51 @@ static void simulator(uint16_t duration_u16,uint8_t numberOfTasks_u8,vector <tas
             }
         }
 
-        /*Sort the ready list in the ascending order of periods. Hence at the end of the sort, the highest priority task is at the start*/
-
-
+         //Only run this section if there are ongoing transmissions or if there are ready tasks
         if((tasksReady_u8 > 0) || (numberOfOngoingTx > 0))
         {
             for(int i = 0;i<numberOfOngoingTx;i++)
             {
+                //For all tasks transmitting, decrement the transmission time.
                 transmittingList[i].remainingTxTime--;
+                //If transmission complete, identify the channel used for transmission, release it and update its gravity.
                 if(transmittingList[i].remainingTxTime == 0)
                 {
                     for(int j = 0; j<totalNumOfChannels_u8;j++)
                     {
-                        if(transmittingList[i].currentChannel == channelDetails_ast[j].channelID_u8)
+                        if(transmittingList[i].currentChannel == channelDetails_ast[j].channelID_u8)  //Search for the channel which is used
                         {
-                            channelDetails_ast[j].availability_bo = true;
+                            channelDetails_ast[j].availability_bo = true;  //Channel release and gravity update
                             currentGravity = ceil(transmittingList[i].computationTime_u16/dutyCycle_ft) - transmittingList[i].computationTime_u16;
-                            if(currentGravity > channelDetails_ast[j].gravity_u16)
+                            if(currentGravity > channelDetails_ast[j].gravity_u16)  //If current gravity is greater than any previously generated gravity update in the gravity variable.
                             {
                                 channelDetails_ast[j].gravity_u16 = currentGravity;
                               //  cout<<"Channel "<<channelDetails_ast[j].channelID_u8<<" gravity is "<<currentGravity<<endl;
                             }
+                            //Add this channel to the list of blocked channel for the node.
                             unavailableChannel_st addCh;
                             addCh.chId_u8 = transmittingList[i].currentChannel;
                             addCh.duration_u16 = currentGravity;
-                            taskDetails_ast[transmittingList[i].taskId_u8].blockedChannels_ast.push_back(unavailableChannel_st(addCh));
+                            taskDetails_ast[transmittingList[i].taskId_u8].blockedChannels_ast.push_back(unavailableChannel_st(addCh)); //Adding to the list
                             break;
                         }
                     }
                     cout<<"Transmission of "<<(unsigned)transmittingList[i].taskId_u8<<" is complete at time "<<systemTime_u16<<" and the channel "<<(unsigned)transmittingList[i].currentChannel<<" is released"<<endl;
-                    transmittingList.erase(transmittingList.begin()+i);
-                    i--;
-                    numberOfOngoingTx--;
+                    transmittingList.erase(transmittingList.begin()+i);  //Erase the trasmitting node
+                    i--;  //Decrement the index i of the for loop since one of the elements in the structure has been erased.
+                    numberOfOngoingTx--;  //Decrement the number of ongoing transmissions
                     continue;
                 }
+                //If deadline overrun is detected in the midst of transmission
                 if(transmittingList[i].deadline_u16 <=systemTime_u16)
                 {
                     /*When an overrun is detected. Print an error message with details and exit*/
                     cout<<"Schedule unfeasible. Deadline of transmission "<<(unsigned)transmittingList[i].taskId_u8<<" missed. System time: "<<systemTime_u16<<endl;
-                    return;
+                    return 0;
                 }
             }
-            //Sort channels based on their gravity
-            //NOTE: COMMENTING THE LINE BELOW EFFECTIVELY ACTIVATES/DEACTIVATES THE ALGORITHM FOR CHANNEL SCHEDULING
-            std::sort(channelDetails_ast.begin(),channelDetails_ast.end(),sortChannels);
 
-            for(int i =0; i<tasksReady_u8;i++)
-            {
-                readyTasks_ast[i].laxity = readyTasks_ast[i].deadline_u16 - systemTime_u16 - readyTasks_ast[i].computationTime_u16;
-            }
-
-            std::sort(readyTasks_ast.begin(), readyTasks_ast.end(), sortWaitingList); //Least laxity sorting
-
+            /*Check for deadline overruns in any of the tasks in the waiting list*/
             for(int i = 0;i<tasksReady_u8;i++)
             {
                 /*Check for deadline overruns*/
@@ -248,41 +245,63 @@ static void simulator(uint16_t duration_u16,uint8_t numberOfTasks_u8,vector <tas
                 {
                     /*When an overrun is detected. Print an error message with details and exit*/
                     cout<<"Schedule unfeasible. Deadline of task "<<(unsigned)readyTasks_ast[i].taskId_u8<<" missed. System time: "<<systemTime_u16<<endl;
-                    return;
+                    return 0;
                 }
             }
+
+
+            //Sort channels based on their gravity
+            //NOTE: COMMENTING THE LINE BELOW EFFECTIVELY ACTIVATES/DEACTIVATES THE ALGORITHM FOR CHANNEL SCHEDULING
+           std::sort(channelDetails_ast.begin(),channelDetails_ast.end(),sortChannels);
+
+           //Least laxity implementation
+            for(int i =0; i<tasksReady_u8;i++)
+            {
+                readyTasks_ast[i].laxity = readyTasks_ast[i].deadline_u16 - systemTime_u16 - readyTasks_ast[i].computationTime_u16;  //Update laxity
+            }
+
+            std::sort(readyTasks_ast.begin(), readyTasks_ast.end(), sortWaitingList); //Least laxity sorting
+
+
+        //Loop for all the tasks ready
         for(int k = 0; k<tasksReady_u8;k++)
         {
-
+        //Find a channel for the ready task
       for(int l = 0;l<totalNumOfChannels_u8;l++)
             {
+                //If current channel is already busy, goto the next channel
                 if(channelDetails_ast[l].availability_bo == false)
                     continue;
                 /*Check if channel is blocked for the current transmitting node*/
                 taskIndex = readyTasks_ast[k].taskId_u8;
-                for(int j = 0; j<taskDetails_ast[taskIndex].blockedChannels_ast.size();j++)
+                for(int j = 0; j<taskDetails_ast[taskIndex].blockedChannels_ast.size();j++)  //Here we reference back to the original structure taskDetails since this keeps track of all the blocked channels
                 {
                     if(taskDetails_ast[taskIndex].blockedChannels_ast[j].chId_u8 == channelDetails_ast[l].channelID_u8)
                     {
-                        //cout<<"** "<<k<<"**"<<(unsigned)taskDetails_ast[taskIndex].taskId_u8<<"**"<<(unsigned)channelDetails_ast[l].channelID_u8<<"**"<<systemTime_u16<<endl;
+
                        goto skipch;
                     }
                 }
-                channelDetails_ast[l].availability_bo = false;
-                transmittingList.push_back(taskInfo_st());
+                //If the channel is not busy and if the channel is not blocked, then assign the channel to the node.
+                channelDetails_ast[l].availability_bo = false;  //Indicate this channel is now taken
+                transmittingList.push_back(taskInfo_st());  //Add this node to the transmitting list
                 transmittingList[numberOfOngoingTx] = readyTasks_ast[k];
-                transmittingList[numberOfOngoingTx].currentChannel = channelDetails_ast[l].channelID_u8;
-                transmittingList[numberOfOngoingTx].remainingTxTime = transmittingList[numberOfOngoingTx].computationTime_u16;
+                transmittingList[numberOfOngoingTx].currentChannel = channelDetails_ast[l].channelID_u8;  //Assign the channel
+                transmittingList[numberOfOngoingTx].remainingTxTime = transmittingList[numberOfOngoingTx].computationTime_u16;  //The remaining Tx time becomes the TOA
                 cout<<"Channel "<<(unsigned)channelDetails_ast[l].channelID_u8<<" assigned to node "<<(unsigned)transmittingList[numberOfOngoingTx].taskId_u8<<" at time "<<systemTime_u16<<endl;
-                readyTasks_ast.erase(readyTasks_ast.begin() + k);
-                k--;
-                tasksReady_u8--;
-                numberOfOngoingTx++;
-                break;
-                skipch: ;
+                readyTasks_ast.erase(readyTasks_ast.begin() + k);  //Remove task from ready list
+                k--;  //Decrement loop index since one of the elements in the list has been removed.
+                tasksReady_u8--;  //Decrement the size of the ready list
+                numberOfOngoingTx++;  //Increment the size of the Tx list
+                break;  //Break from inner loop and beginning channel search for the next node
+
+
+                skipch: ;  //Skip the channel because it is blocked for this node
             }
         }
         }
+
+        /*This section is to view the working of the scheduler in depth. Uncomment for debugging*/
 //        //Print all status
 //        cout<<"#############At time "<<systemTime_u16<<" :"<<endl;
 //        for(int i = 0; i < tasksReady_u8; i++)
@@ -316,47 +335,60 @@ static void simulator(uint16_t duration_u16,uint8_t numberOfTasks_u8,vector <tas
     }
 
 
-    return;
+    return 1;
 }
-
-/*Function for calculation of time on air*/
+/**********************calculateTOA(float SF_u8, float PL_u8)************************/
+/* Description: This function calculates the time over air value for a given payload and spread factor
+ * of an overrun.
+ * Input:
+ *          SF_u8(float): Spreading factor
+ *          PL_u8(float): Payload size
+ * Return:  Calculated TOA
+***************************************************************************************/
 static float calculateTOA(float SF_u8, float PL_u8)
 {
     float retval_ft = 0, calc_ft = 0, symbolTime_ft = 0, preambleTime_ft = 0 ;
 
 
-    calc_ft = ceil(((8*PL_u8)-(4*SF_u8)+(8+16+20))/(4*SF_u8))*(4/0.8);
+    calc_ft = ceil(((8*PL_u8)-(4*SF_u8)+(8+16+20))/(4*SF_u8))*(4/0.8);  //Calculation of number of symbols
 
-    symbolTime_ft = (pow(2,SF_u8))/125;
+    symbolTime_ft = (pow(2,SF_u8))/125;  //Get the symbol time. This is used calculate the time taken for each symbol transmission.
 
-    preambleTime_ft = (8+4.25)*symbolTime_ft;
+    preambleTime_ft = (8+4.25)*symbolTime_ft;  //Calculate the time taken to send the fixed preamble by multiplying with symbo time.
 
-    retval_ft = 8 + fmax(calc_ft,0);
+    retval_ft = 8 + fmax(calc_ft,0);  //Calculate the max size of the payload
 
-    retval_ft*=symbolTime_ft;
-    retval_ft+=preambleTime_ft;
-    retval_ft = ceil(retval_ft);
+    retval_ft*=symbolTime_ft;   //Calculate the time required to send the payload
+    retval_ft+=preambleTime_ft;  //Add the preamble time to the time required to send the payload to get the overall TOA.
+    retval_ft = ceil(retval_ft);  //Ceil the value. Ex(29.5 = 30)
 
-    return retval_ft;
+    return retval_ft;  //Return the calculated TOA
 }
+
+/**********************simulationSets************************/
+/* Description: This function takes the user input and generates a task set to be simulated. The task set is then run on the simulator() function.
+ * Node implies the end node performing the LoRa transmission/reception.
+ * Input:   None
+ * Return:  None
+**************************************************************/
 
 static void simulationSets()
 {
-    int numberOfChannels, numberOfLinks,numberOfSimulations;
+    int numberOfChannels, numberOfNodes,numberOfSimulations;
     vector<taskInfo_st> nodeList;
     vector<channelInfo> channelList;
-    float randomPayload,lowestPeriod=0,periodCalc =0;
+    float randomPayload,lowestPeriod=0,periodCalc =0, average = 0;
     //Get the number of nodes, number of channels and the number of simulation sets
     cout<<"Enter the number of nodes"<<endl;
-    cin>>numberOfLinks;
-    for(int i = 0; i<numberOfLinks; i++)
+    cin>>numberOfNodes;
+    for(int i = 0; i<numberOfNodes; i++)
     {
         /*Add a new element to the taskDetails_ast, metrics_ast, taskPeriods_au16 structure */
         nodeList.push_back(taskInfo_st());
 
         nodeList[i].taskId_u8 = i;  //Assign task ID. Here the task ID is equal to the index for simplicity
     }
-    cout<<"Enter the number of links"<<endl;
+    cout<<"Enter the number of channels"<<endl;
     cin>>numberOfChannels;
     for(int i = 0; i<numberOfChannels;i++)
     {
@@ -369,33 +401,35 @@ static void simulationSets()
     cin>>numberOfSimulations;
     for(int i = 0;i<numberOfSimulations;i++)  //Create node set for each simulation set requested
     {
-        for(int j =0;j<numberOfLinks;j++)  //Generate TOA for a random payload for each node
+        for(int j =0;j<numberOfNodes;j++)  //Generate TOA for a random payload for each node
         {
-            nodeList[j].SpreadFactor = 7 + rand()%6;
-            randomPayload = 1 + rand()%5;
+            nodeList[j].SpreadFactor = 7+ rand()%6;  //Assign a random spreading factor between 7 and 12
+            randomPayload = 1 + (rand()%5);   //Assign a random payload between 1 and 5 bytes
             nodeList[j].computationTime_u16 = calculateTOA(nodeList[j].SpreadFactor,randomPayload);
             nodeList[j].deadline_u16 = nodeList[j].computationTime_u16 * (1+(rand()%5));  //Deadline assigned as a random value between TOA and 5*TOA
         }
         lowestPeriod = FLT_MAX;
-        for(int j =0;j<numberOfLinks;j++)  //Calculate the smallest period (See paper)
+        for(int j =0;j<numberOfNodes;j++)  //Calculate the smallest period (See paper)
         {
             periodCalc = ceil((nodeList[j].computationTime_u16/0.01));
             if(periodCalc < lowestPeriod)
                 lowestPeriod = periodCalc;
         }
-        for(int j = 0; j<numberOfLinks;j++)  //Assign this period to all the nodes
+        for(int j = 0; j<numberOfNodes;j++)  //Assign this period to all the nodes
         {
-            nodeList[j].period_u16 = lowestPeriod;
+            nodeList[j].period_u16 = ceil(lowestPeriod);
         }
         cout<<"Generated task set "<<i<<" :"<<endl;
-        for(int j = 0; j<numberOfLinks;j++)   //Display the generated task set
+        for(int j = 0; j<numberOfNodes;j++)   //Display the generated task set
         {
             cout<<"Task ID: "<<(unsigned)nodeList[j].taskId_u8<<" of period : "<<nodeList[j].period_u16<<" of TOA: "<<nodeList[j].computationTime_u16<<" of deadline: "<<nodeList[j].deadline_u16<<endl;
 
         }
-        simulator(lowestPeriod*5,numberOfLinks,nodeList,numberOfChannels,channelList);
+       average += simulator((int)(lowestPeriod*(100/numberOfChannels)),numberOfNodes,nodeList,numberOfChannels,channelList);  //Simulate for 100 periods.
         cout<<"***********************"<<endl;
     }
+    average/=numberOfSimulations;
+    cout<<"Average simulation "<<average<<endl;
 
 
 }
