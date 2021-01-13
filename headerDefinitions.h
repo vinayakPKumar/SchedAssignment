@@ -32,11 +32,14 @@ struct taskMetrics_st
     vector<int>responseTimes_au16;
     vector<int>waitTime_au16;
 };
+
 struct channelInfo
 {
     int gravity_u16;
     bool availability_bo;
     int channelID_u8;
+    bool sfAvailable[6];
+    int numberOfLinksOngoing = 0;
     bool operator() (channelInfo i,channelInfo j) { return (i.gravity_u16>j.gravity_u16);}
 }sortChannels;
 
