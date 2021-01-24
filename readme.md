@@ -1,4 +1,4 @@
-#Scheduling assignment
+LoRa schedule simulator
 
 To run please follow the steps below:
 1. Clone the repository.
